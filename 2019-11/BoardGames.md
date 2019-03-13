@@ -236,7 +236,7 @@ board_games_processed %>%
   nh_theme +
   theme(legend.position = "none") +
   labs(title = "Average Board Game Rating by Minimum Recommended Age",
-       subtitle = "Games with more than 500 user ratings",
+       subtitle = "Games with more than 500 user ratings; My favorite games are labeled",
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
 ```
 
@@ -251,6 +251,7 @@ board_games_processed %>%
   ungroup() %>%
   ggplot(aes(x = (paste0(min_age_group, "\nn=", n)), y = average_rating, color = min_age_group, fill = min_age_group)) +
   geom_violin() +
+   geom_hline(yintercept = wt_avg, color = "grey50") +
   scale_y_continuous(limits = c(1,10), breaks = c(1:10), name = "Average User Rating") +
   scale_x_discrete(name = "Minimum Recommended Age") +
   nh_theme +
@@ -261,6 +262,8 @@ board_games_processed %>%
 ```
 
 ![](BoardGames_files/figure-markdown_github/unnamed-chunk-7-1.png)
+
+Not too surprising that games with a higher minimum recommended age have modal points that are higher in rating. It's likely that older people are going onto the site to rate the games and young kids games typically aren't challenging enough for older kids and adults.
 
 Future To Todos
 ---------------
