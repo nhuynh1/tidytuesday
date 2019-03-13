@@ -1,0 +1,165 @@
+---
+title: "Board Games Database"
+author: "Nancy Huynh"
+date: '2019-03-12'
+output: 
+  github_document:
+    toc: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Board Games Database (Board Game Geek)
+This data set is right up my alley. Board games are my favorite rainy/snowy weekend activity; puzzles are probably come in at number 2 just because they're much more solitary. This was an exciting TidyTuesday as I ended up trying out beeswarm and violin charts, both are pretty new to me. All in all I spent too much time playing around with those charts and I wanted to do even more with the category and mechanics variables (maybe on the weekend, so I guess past time number 3 is data wrangling, lol.) Find that data dictionary on the [TidyTuesday repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-03-12)
+
+## Libraries and Data Import
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(skimr)
+library(ggbeeswarm)
+library(ggrepel)
+```
+
+```{r message=FALSE}
+board_games <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-12/board_games.csv")
+```
+
+
+### Quick Look at Data and Variables
+Some of the numeric variables look interesting, such as the `max_playtime` of 60000 minutes?! And the game with `min_age` of 42?
+```{r}
+glimpse(board_games)
+skim(board_games)
+```
+
+The game with minimum age of 42 is "South African Railroads", on the Board Game Geek website it is shown that there is no recommended age by the publisher and the community rates it as 14+, so 42 could be some sort of error from when this data was pulled. I feel pretty good about updating this value to `min_age = 14` after looking it up. Not to mention leaving it would skew future visualizations.
+```{r}
+idx <- which(board_games$min_age == 42)
+glimpse(board_games[idx, ])
+
+board_games$min_age[idx] <- 14
+```
+
+The game with the max_playtime of 60000 is "The Campaign for North Africa", which the Board Game Geek wesbite noted "playing time with 10 players is listed at 1200 hours". So that outlier is legit. Wow.
+```{r}
+board_games %>% 
+  filter(max_playtime == 60000) %>%
+  glimpse()
+```
+
+
+## How does minumum recommended age relate to average user rating?
+
+Initially, I went with a `geom_point` scatter plot with jittering and dropped the alpha; I also left the `min-age` variable as is. It was ok but even with the jittering it was still difficult to get a sense of how many games lined up with each minimum recommended age and how the distribution looked for each recommended age. With that said, I decided to try out a beeswarm plot after learning about it briefly from a [Datacamp course](https://www.datacamp.com/courses/visualization-best-practices-in-r). 
+
+Without bucketing the minimum recommended age the beeswarm plot was still a bit messy, although it was easier to see the average rating distribution for each age. I grouped the minimum recommended age based on the initial jittered scatter plot where it was clear that recommended ages for board games tend to be 8, 10, 12, 13, and 14 years old. Note that 12 and 13 ended up grouped together so that the ranges for each group increment consistently. See [Appendix](#appendix) for the initial scatter plot.
+
+There was a lot of overlap between each swarm due to the number of games the data set captures, so in a bit of an arbitrary decision I filtered it for games where over 500 users have rated the game. 
+```{r fig.width=10}
+## my theme object from previous TidyTuesday
+nh_theme <- theme(panel.background = element_rect(fill = "white"),
+          strip.background = element_blank(),
+          strip.text = element_text(hjust = 0, size = 14, color = "grey25", face = "bold"),
+          panel.spacing = unit(2, "lines"),
+          axis.line = element_line(color = "grey85"),
+          panel.grid.major.y = element_line(color = "grey75", linetype = "dotted"),
+          legend.key = element_blank(),
+          legend.key.height = unit(1, "cm"),
+          legend.title = element_text(size = "10"),
+          plot.title = element_text(size = 15, color = "grey15", face = "bold"),
+          plot.subtitle = element_text(size = 12, color = "grey30"),
+          text = element_text(color = "grey40"))
+
+## my favourite board games
+nh_favorites <- c("Exploding Kittens", "Ticket to Ride", "Caverna: The Cave Farmers")
+
+## calculate weighted average for all games in dataset
+wt_avg <- board_games %>%
+  summarise(sum(average_rating * users_rated) / sum(users_rated)) %>%
+  as_vector()
+
+board_games_processed <- board_games %>%
+  mutate(
+    min_age_group = case_when(
+      min_age == 0 ~ "No Min Age",
+      min_age > 0 & min_age < 8 ~ "08 & Under", ## added the leading 0s because I didn't want to manually level
+      min_age >= 8 & min_age <= 9 ~ "08 to 09",
+      min_age >= 10 & min_age <= 11 ~ "10 to 11",
+      min_age >= 12 & min_age <= 13 ~ "12 to 13",
+      min_age > 13 ~ "14+"
+      ),
+    favorite = ifelse(name %in% nh_favorites, TRUE, FALSE) ## flagging my favorite games
+  )
+  
+board_games_processed %>%
+  filter(users_rated > 500) %>% 
+  ggplot(aes(x = min_age_group, y = average_rating, color = min_age_group)) +
+  geom_beeswarm(cex = 0.5, alpha = 0.5, shape = 18, priority = "density") +
+  geom_text_repel(data = filter(board_games_processed, favorite == TRUE), aes(label = str_wrap(name, 10)), nudge_x = -0.5) +
+  geom_hline(yintercept = wt_avg, color = "grey50") +
+  scale_y_continuous(limits = c(1, 10), breaks = c(1:10), name = "Average User Rating") +
+  scale_x_discrete(name = "Minimum Recommended Age", expand = c(0, 1)) +
+  annotate("text", x = 6.6, y = wt_avg, label = "All Games \nAverage Rating", vjust = -0.25, size = 3) +
+  nh_theme +
+  theme(legend.position = "none") +
+  labs(title = "Average Board Game Rating by Minimum Recommended Age",
+       subtitle = "Games with more than 500 user ratings",
+       caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+```
+
+
+Alternatively, a violin plot with the n-value labelled would probably work better to capture all the data in the set (although that's still not all the games as the TidyTuesday data was limited to games with at least 50 user ratings!)
+```{r fig.width=10}
+
+board_games_processed %>%
+  group_by(min_age_group) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  ggplot(aes(x = (paste0(min_age_group, "\nn=", n)), y = average_rating, color = min_age_group, fill = min_age_group)) +
+  geom_violin() +
+  scale_y_continuous(limits = c(1,10), breaks = c(1:10), name = "Average User Rating") +
+  scale_x_discrete(name = "Minimum Recommended Age") +
+  nh_theme +
+  theme(legend.position = "none") +
+  labs(title = "Average Board Game Rating by Minimum Recommended Age",
+       subtitle = "Games with at least 50 user ratings",
+       caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+```
+
+
+## Future To Todos
+
+### How many categories are there?
+How do the games breakdown by category?
+I also started to look into the categories, but will have to figure out how to separate out the categories strings and visualize the games by categories another time!
+```{r}
+paste2 <- function (x, y, sep = ",") paste(x, y, sep = sep)
+
+games_categories <- board_games$category %>%
+  reduce(paste2) %>%
+  str_split(",") %>%
+  as_vector() %>%
+  str_trim(side = "both") %>%
+  unique()
+
+games_categories
+
+length(games_categories)
+```
+
+
+## Appendix
+
+Here's the initial scatter plot I started with before I tried out the beeswarm and the violin.
+Note: the minimum recommended age for board games tend to be 8, 10, 12, 13, and 14 years old.
+```{r}
+board_games %>%
+  ggplot(aes(x = min_age, y = average_rating)) +
+  geom_point(alpha = 0.2, position = "jitter") +
+  scale_x_continuous(breaks = c(0:30)) + 
+  nh_theme
+```
+
