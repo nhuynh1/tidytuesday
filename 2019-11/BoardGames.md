@@ -200,7 +200,7 @@ board_games %>%
   scale_x_continuous(breaks = seq(from = 1950, to = 2016, by = 10))
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-7-1.png)
+![](BoardGames_files/figure-markdown_github/years-1.png)
 
 How does minumum recommended age relate to average user rating?
 ---------------------------------------------------------------
@@ -249,7 +249,7 @@ board_games %>%
   }
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-8-1.png)
+![](BoardGames_files/figure-markdown_github/beeswarm-1.png)
 
 Alternatively, a violin plot with the n-value labelled would probably work better to capture all the data in the set (although that's still not all the games as the TidyTuesday data was limited to games with at least 50 user ratings!)
 
@@ -281,7 +281,7 @@ board_games %>%
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-9-1.png)
+![](BoardGames_files/figure-markdown_github/violin-1.png)
 
 Not too surprising that games with a higher minimum recommended age have peaks in distribution that correspond to higher ratings. It's likely that older people are going onto the site to rate the games and young kids games typically aren't challenging enough for older kids and adults.
 
@@ -377,7 +377,7 @@ board_games_processed %>%
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-12-1.png)
+![](BoardGames_files/figure-markdown_github/topcategories-1.png)
 
 ### How does game category influence average user ratings?
 
@@ -413,7 +413,7 @@ board_games_coeffs[-1, ] %>%
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-13-1.png)
+![](BoardGames_files/figure-markdown_github/regressioncoeffs-1.png)
 
 Appendix
 --------
@@ -428,4 +428,4 @@ board_games %>%
   nh_theme
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-14-1.png)
+![](BoardGames_files/figure-markdown_github/unnamed-chunk-9-1.png)

@@ -79,7 +79,7 @@ board_games %>%
 ```
 
 Here's how many games were introduced over the years? 
-```{r}
+```{r years}
 board_games %>%
   count(year_published) %>%
   ggplot(aes(x = year_published, y = n)) +
@@ -96,7 +96,7 @@ Without bucketing the minimum recommended age the beeswarm plot was still a bit 
 
 There was a lot of overlap between each swarm due to the number of games the data set captures, so in a bit of an arbitrary decision I filtered it for games where over 500 users have rated the game. 
 
-```{r fig.width=10}
+```{r beeswarm, fig.width=10}
 ## my favourite board games
 nh_favorites <- c("Exploding Kittens", "Ticket to Ride", "Caverna: The Cave Farmers")
 
@@ -137,7 +137,7 @@ board_games %>%
 
 Alternatively, a violin plot with the n-value labelled would probably work better to capture all the data in the set (although that's still not all the games as the TidyTuesday data was limited to games with at least 50 user ratings!)
 
-```{r fig.width=10}
+```{r violin, fig.width=10}
 
 board_games %>%
   mutate(
@@ -196,7 +196,7 @@ board_games_processed %>%
 
 Let's see the distribution of these top three game categories over the years. Lots of card and fantasy games have been published in recent years, but less so for war games.
 
-```{r fig.width=10}
+```{r topcategories, fig.width=10}
 board_games_processed %>%
   filter(category %in% c("War", "Card Game", "Fantasy")) %>%
   ggplot(aes(x = year_published, color = category, fill = category)) +
@@ -217,7 +217,7 @@ board_games_processed %>%
 ### How does game category influence average user ratings?
 Looks like people really like train games and really don't like trivia games. This chart is pretty crazy though, I think in future I will use `fct_lump` to grab the top 20 categories and drop everything else into an "other" category. Additionally I kept in all coefficients even ones with p-value greater than 0.05.
 
-```{r fig.width=10, fig.height=10}
+```{r regressioncoeffs, fig.width=10, fig.height=10}
 board_games_processed_wide <- board_games_processed %>%
   spread(key = category, value = category) %>%
   select(-dim(.)[2]) #drop the column of NAs, which is the last column
