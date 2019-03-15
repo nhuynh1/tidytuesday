@@ -7,8 +7,10 @@ Nancy Huynh
     -   [Libraries and Data Import](#libraries-and-data-import)
         -   [Quick Look at Data and Variables](#quick-look-at-data-and-variables)
     -   [How does minumum recommended age relate to average user rating?](#how-does-minumum-recommended-age-relate-to-average-user-rating)
-    -   [Future To Todos](#future-to-todos)
+    -   [Categories](#categories)
         -   [How many categories are there?](#how-many-categories-are-there)
+        -   [Which are the top three categories?](#which-are-the-top-three-categories)
+        -   [How does game category influence average user ratings?](#how-does-game-category-influence-average-user-ratings)
     -   [Appendix](#appendix)
 
 Board Games Database (Board Game Geek)
@@ -24,10 +26,19 @@ library(tidyverse)
 library(skimr)
 library(ggbeeswarm)
 library(ggrepel)
+library(broom)
 ```
+
+Glad I got a [tweet from @BenMoretti](https://twitter.com/BenMoretti/status/1105972981010882560) and came across [this tweet](https://twitter.com/thomas_mock/status/1105501978887680000) from @thomas\_mock about the `tidyr::separate_rows()` function before I started trying to reinvent the wheel!
 
 ``` r
 board_games <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-12/board_games.csv")
+
+## split out the categories and group the various types of war games into one group called "War"
+board_games_processed <- board_games %>%
+  separate_rows(category, sep = ",") %>%
+  mutate(category = ifelse(grepl("War",category), "War", category)) %>%
+  distinct() 
 ```
 
 ### Quick Look at Data and Variables
@@ -179,6 +190,18 @@ board_games %>%
     ## $ average_rating <dbl> 5.62887
     ## $ users_rated    <dbl> 97
 
+Here's how many games were introduced over the years?
+
+``` r
+board_games %>%
+  count(year_published) %>%
+  ggplot(aes(x = year_published, y = n)) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(from = 1950, to = 2016, by = 10))
+```
+
+![](BoardGames_files/figure-markdown_github/unnamed-chunk-7-1.png)
+
 How does minumum recommended age relate to average user rating?
 ---------------------------------------------------------------
 
@@ -189,29 +212,16 @@ Without bucketing the minimum recommended age the beeswarm plot was still a bit 
 There was a lot of overlap between each swarm due to the number of games the data set captures, so in a bit of an arbitrary decision I filtered it for games where over 500 users have rated the game.
 
 ``` r
-## my theme object from previous TidyTuesday
-nh_theme <- theme(panel.background = element_rect(fill = "white"),
-          strip.background = element_blank(),
-          strip.text = element_text(hjust = 0, size = 14, color = "grey25", face = "bold"),
-          panel.spacing = unit(2, "lines"),
-          axis.line = element_line(color = "grey85"),
-          panel.grid.major.y = element_line(color = "grey75", linetype = "dotted"),
-          legend.key = element_blank(),
-          legend.key.height = unit(1, "cm"),
-          legend.title = element_text(size = "10"),
-          plot.title = element_text(size = 15, color = "grey15", face = "bold"),
-          plot.subtitle = element_text(size = 12, color = "grey30"),
-          text = element_text(color = "grey40"))
-
 ## my favourite board games
 nh_favorites <- c("Exploding Kittens", "Ticket to Ride", "Caverna: The Cave Farmers")
 
 ## calculate weighted average for all games in dataset
 wt_avg <- board_games %>%
   summarise(sum(average_rating * users_rated) / sum(users_rated)) %>%
-  as_vector()
+  pull()
 
-board_games_processed <- board_games %>%
+board_games %>%
+  filter(users_rated > 500) %>% 
   mutate(
     min_age_group = case_when(
       min_age == 0 ~ "No Min Age",
@@ -222,38 +232,48 @@ board_games_processed <- board_games %>%
       min_age > 13 ~ "14+"
       ),
     favorite = ifelse(name %in% nh_favorites, TRUE, FALSE) ## flagging my favorite games
-  )
-  
-board_games_processed %>%
-  filter(users_rated > 500) %>% 
-  ggplot(aes(x = min_age_group, y = average_rating, color = min_age_group)) +
+  ) %>% {
+  ggplot(., aes(x = min_age_group, y = average_rating, color = min_age_group)) +
   geom_beeswarm(cex = 0.5, alpha = 0.5, shape = 18, priority = "density") +
-  geom_text_repel(data = filter(board_games_processed, favorite == TRUE), aes(label = str_wrap(name, 10)), nudge_x = -0.5) +
+  geom_text_repel(data = filter(., favorite == TRUE), aes(label = str_wrap(name, 10)), nudge_x = -0.5) +
   geom_hline(yintercept = wt_avg, color = "grey50") +
   scale_y_continuous(limits = c(1, 10), breaks = c(1:10), name = "Average User Rating") +
   scale_x_discrete(name = "Minimum Recommended Age", expand = c(0, 1)) +
+  scale_color_manual(values = nh_colors) +
   annotate("text", x = 6.6, y = wt_avg, label = "All Games \nAverage Rating", vjust = -0.25, size = 3) +
   nh_theme +
   theme(legend.position = "none") +
   labs(title = "Average Board Game Rating by Minimum Recommended Age",
        subtitle = "Games with more than 500 user ratings; My favorite games are labeled",
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+  }
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-6-1.png)
+![](BoardGames_files/figure-markdown_github/unnamed-chunk-8-1.png)
 
 Alternatively, a violin plot with the n-value labelled would probably work better to capture all the data in the set (although that's still not all the games as the TidyTuesday data was limited to games with at least 50 user ratings!)
 
 ``` r
-board_games_processed %>%
+board_games %>%
+  mutate(
+    min_age_group = case_when(
+      min_age == 0 ~ "No Min Age",
+      min_age > 0 & min_age < 8 ~ "08 & Under", ## added the leading 0s because I didn't want to manually level
+      min_age >= 8 & min_age <= 9 ~ "08 to 09",
+      min_age >= 10 & min_age <= 11 ~ "10 to 11",
+      min_age >= 12 & min_age <= 13 ~ "12 to 13",
+      min_age > 13 ~ "14+"
+  )) %>%
   group_by(min_age_group) %>%
   mutate(n = n()) %>%
   ungroup() %>%
-  ggplot(aes(x = (paste0(min_age_group, "\nn=", n)), y = average_rating, color = min_age_group, fill = min_age_group)) +
+  ggplot(aes(x = (paste0(min_age_group, "\nn=", n)), y = average_rating, fill = min_age_group)) +
   geom_violin() +
-   geom_hline(yintercept = wt_avg, color = "grey50") +
+  geom_hline(yintercept = wt_avg, color = "grey50") +
   scale_y_continuous(limits = c(1,10), breaks = c(1:10), name = "Average User Rating") +
-  scale_x_discrete(name = "Minimum Recommended Age") +
+  scale_x_discrete(name = "Minimum Recommended Age", expand = c(0, 1)) +
+  scale_fill_manual(values = nh_colors) +
+  annotate("text", x = 6.6, y = wt_avg, label = "All Games \nAverage Rating", vjust = -0.25, size = 3) +
   nh_theme +
   theme(legend.position = "none") +
   labs(title = "Average Board Game Rating by Minimum Recommended Age",
@@ -261,78 +281,139 @@ board_games_processed %>%
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-7-1.png)
+![](BoardGames_files/figure-markdown_github/unnamed-chunk-9-1.png)
 
-Not too surprising that games with a higher minimum recommended age have modal points that are higher in rating. It's likely that older people are going onto the site to rate the games and young kids games typically aren't challenging enough for older kids and adults.
+Not too surprising that games with a higher minimum recommended age have peaks in distribution that correspond to higher ratings. It's likely that older people are going onto the site to rate the games and young kids games typically aren't challenging enough for older kids and adults.
 
-Future To Todos
----------------
+Categories
+----------
 
 ### How many categories are there?
 
-How do the games breakdown by category? I also started to look into the categories, but will have to figure out how to separate out the categories strings and visualize the games by categories another time!
+Note that I had collapsed the various war games into one main category of "War" earlier in processing.
 
 ``` r
-paste2 <- function (x, y, sep = ",") paste(x, y, sep = sep)
+categories_unique <- board_games_processed %>%
+  drop_na(category) %>%
+  select(category) %>%
+  unique() %>%
+  arrange(category)%>%
+  pull()
 
-games_categories <- board_games$category %>%
-  reduce(paste2) %>%
-  str_split(",") %>%
-  as_vector() %>%
-  str_trim(side = "both") %>%
-  unique()
-
-games_categories
+categories_unique
 ```
 
-    ##  [1] "Economic"                   "Negotiation"               
-    ##  [3] "Political"                  "Card Game"                 
-    ##  [5] "Fantasy"                    "Abstract Strategy"         
-    ##  [7] "Medieval"                   "Ancient"                   
-    ##  [9] "Civilization"               "Nautical"                  
-    ## [11] "Exploration"                "Travel"                    
-    ## [13] "Farming"                    "Mythology"                 
-    ## [15] "Bluffing"                   "Science Fiction"           
-    ## [17] "Collectible Components"     "Dice"                      
-    ## [19] "Fighting"                   "Print & Play"              
-    ## [21] "Miniatures"                 "Racing"                    
-    ## [23] "American West"              "City Building"             
-    ## [25] "Adventure"                  "Wargame"                   
-    ## [27] "Space Exploration"          "Renaissance"               
-    ## [29] "Humor"                      "Electronic"                
-    ## [31] "Horror"                     "Novel-based"               
-    ## [33] "Deduction"                  "Word Game"                 
-    ## [35] "Territory Building"         "Aviation / Flight"         
-    ## [37] "Maze"                       "Puzzle"                    
-    ## [39] "Real-time"                  "Trivia"                    
-    ## [41] "Industry / Manufacturing"   "Party Game"                
-    ## [43] "World War II"               "American Civil War"        
-    ## [45] "Age of Reason"              "Movies / TV / Radio theme" 
-    ## [47] "World War I"                "Trains"                    
-    ## [49] "Animals"                    "Children's Game"           
-    ## [51] "Pirates"                    "Murder/Mystery"            
-    ## [53] "Transportation"             "Prehistoric"               
-    ## [55] "Action / Dexterity"         "Sports"                    
-    ## [57] "Game System"                "Spies/Secret Agents"       
-    ## [59] "Educational"                "Medical"                   
-    ## [61] "Mafia"                      "Zombies"                   
-    ## [63] "Comic Book / Strip"         "Napoleonic"                
-    ## [65] "Civil War"                  "American Indian Wars"      
-    ## [67] "American Revolutionary War" "Post-Napoleonic"           
-    ## [69] "Book"                       "Music"                     
-    ## [71] "NA"                         "Arabian"                   
-    ## [73] "Memory"                     "Modern Warfare"            
-    ## [75] "Environmental"              "Number"                    
-    ## [77] "Religious"                  "Math"                      
-    ## [79] "Pike and Shot"              "Video Game Theme"          
-    ## [81] "Mature / Adult"             "Vietnam War"               
-    ## [83] "Korean War"                 "Expansion for Base-game"
+    ##  [1] "Abstract Strategy"         "Action / Dexterity"       
+    ##  [3] "Adventure"                 "Age of Reason"            
+    ##  [5] "American West"             "Ancient"                  
+    ##  [7] "Animals"                   "Arabian"                  
+    ##  [9] "Aviation / Flight"         "Bluffing"                 
+    ## [11] "Book"                      "Card Game"                
+    ## [13] "Children's Game"           "City Building"            
+    ## [15] "Civilization"              "Collectible Components"   
+    ## [17] "Comic Book / Strip"        "Deduction"                
+    ## [19] "Dice"                      "Economic"                 
+    ## [21] "Educational"               "Electronic"               
+    ## [23] "Environmental"             "Expansion for Base-game"  
+    ## [25] "Exploration"               "Fantasy"                  
+    ## [27] "Farming"                   "Fighting"                 
+    ## [29] "Game System"               "Horror"                   
+    ## [31] "Humor"                     "Industry / Manufacturing" 
+    ## [33] "Mafia"                     "Math"                     
+    ## [35] "Mature / Adult"            "Maze"                     
+    ## [37] "Medical"                   "Medieval"                 
+    ## [39] "Memory"                    "Miniatures"               
+    ## [41] "Movies / TV / Radio theme" "Murder/Mystery"           
+    ## [43] "Music"                     "Mythology"                
+    ## [45] "Napoleonic"                "Nautical"                 
+    ## [47] "Negotiation"               "Novel-based"              
+    ## [49] "Number"                    "Party Game"               
+    ## [51] "Pike and Shot"             "Pirates"                  
+    ## [53] "Political"                 "Post-Napoleonic"          
+    ## [55] "Prehistoric"               "Print & Play"             
+    ## [57] "Puzzle"                    "Racing"                   
+    ## [59] "Real-time"                 "Religious"                
+    ## [61] "Renaissance"               "Science Fiction"          
+    ## [63] "Space Exploration"         "Spies/Secret Agents"      
+    ## [65] "Sports"                    "Territory Building"       
+    ## [67] "Trains"                    "Transportation"           
+    ## [69] "Travel"                    "Trivia"                   
+    ## [71] "Video Game Theme"          "War"                      
+    ## [73] "Word Game"                 "Zombies"
+
+### Which are the top three categories?
 
 ``` r
-length(games_categories)
+board_games_processed %>%
+  drop_na(category) %>%
+  count(category) %>% 
+  top_n(n = 3, wt = n)
 ```
 
-    ## [1] 84
+    ## # A tibble: 3 x 2
+    ##   category      n
+    ##   <chr>     <int>
+    ## 1 Card Game  2981
+    ## 2 Fantasy    1218
+    ## 3 War        2095
+
+Let's see the distribution of these top three game categories over the years. Lots of card and fantasy games have been published in recent years, but less so for war games.
+
+``` r
+board_games_processed %>%
+  filter(category %in% c("War", "Card Game", "Fantasy")) %>%
+  ggplot(aes(x = year_published, color = category, fill = category)) +
+  geom_density(bw = 1.5) +
+  geom_rug(alpha = 0.2) +
+  facet_wrap(~category) +
+  scale_color_manual(values = nh_colors, name = "Game Category") +
+  scale_fill_manual(values = nh_colors, name = "Game Category") +
+  scale_x_continuous(breaks = seq(from = 1950, to = 2016, by = 20), name = "Year Published") +
+  scale_y_continuous(name = "Density") +
+  nh_theme + 
+  theme(legend.position = "none") +
+  labs(title = "Top Three Board Game Categories Over the Years (1950-2016)",
+       subtitle = "Various types of war games combined into single \"War\" category; \nBandwidth: 1.5",
+       caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+```
+
+![](BoardGames_files/figure-markdown_github/unnamed-chunk-12-1.png)
+
+### How does game category influence average user ratings?
+
+Looks like people really like train games and really don't like trivia games. This chart is pretty crazy though, I think in future I will use `fct_lump` to grab the top 20 categories and drop everything else into an "other" category. Additionally I kept in all coefficients even ones with p-value greater than 0.05.
+
+``` r
+board_games_processed_wide <- board_games_processed %>%
+  spread(key = category, value = category) %>%
+  select(-dim(.)[2]) #drop the column of NAs, which is the last column
+
+for(category in categories_unique){
+  board_games_processed_wide[[category]] <- ifelse(!is.na(board_games_processed_wide[[category]]), TRUE, FALSE)
+}
+
+board_games_coeffs <- board_games_processed_wide %>%
+  select(average_rating, categories_unique) %>%
+  lm(average_rating ~ ., data = .) %>%
+  tidy()
+
+board_games_coeffs[-1, ] %>%
+  mutate(term = gsub("TRUE", "", term),
+         term = gsub("`", "", term)) %>%
+  ggplot(aes(x = fct_reorder(term, estimate), y = estimate)) +
+  geom_point() +
+  geom_segment(aes(x = fct_reorder(term, estimate), xend = fct_reorder(term, estimate), y = 0, yend = estimate)) +
+  scale_y_continuous(name = "Regression Coefficient") +
+  scale_x_discrete(name = "") +
+  coord_flip() +
+  nh_theme +
+  theme(panel.grid.major.y = element_line(linetype = "solid")) +
+  labs(title = "Game Category Influences on Average Rating",
+       subtitle = "Various types of war games combined into single \"War\" category",
+       caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+```
+
+![](BoardGames_files/figure-markdown_github/unnamed-chunk-13-1.png)
 
 Appendix
 --------
@@ -347,4 +428,4 @@ board_games %>%
   nh_theme
 ```
 
-![](BoardGames_files/figure-markdown_github/unnamed-chunk-9-1.png)
+![](BoardGames_files/figure-markdown_github/unnamed-chunk-14-1.png)

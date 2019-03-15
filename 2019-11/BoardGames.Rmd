@@ -21,14 +21,42 @@ library(tidyverse)
 library(skimr)
 library(ggbeeswarm)
 library(ggrepel)
+library(broom)
 ```
 
+Glad I got a [tweet from \@BenMoretti](https://twitter.com/BenMoretti/status/1105972981010882560) and came across [this tweet](https://twitter.com/thomas_mock/status/1105501978887680000) from \@thomas_mock about the `tidyr::separate_rows()` function before I started trying to reinvent the wheel!
 ```{r message=FALSE}
 board_games <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-03-12/board_games.csv")
+
+## split out the categories and group the various types of war games into one group called "War"
+board_games_processed <- board_games %>%
+  separate_rows(category, sep = ",") %>%
+  mutate(category = ifelse(grepl("War",category), "War", category)) %>%
+  distinct() 
 ```
 
+```{r echo=FALSE, include=FALSE}
+## my theme object from previous TidyTuesday
+nh_theme <- theme(panel.background = element_rect(fill = "white"),
+          strip.background = element_blank(),
+          strip.text = element_text(hjust = 0, size = 14, color = "grey25", face = "bold"),
+          panel.spacing = unit(2, "lines"),
+          axis.line = element_line(color = "grey85"),
+          panel.grid.major.y = element_line(color = "grey75", linetype = "dotted"),
+          legend.key = element_blank(),
+          legend.key.height = unit(1, "cm"),
+          legend.title = element_text(size = "10"),
+          plot.title = element_text(size = 15, color = "grey15", face = "bold"),
+          plot.subtitle = element_text(size = 12, color = "grey30"),
+          text = element_text(color = "grey40"))
+
+nh_colors <- RColorBrewer::brewer.pal(12, "Paired")
+nh_colors <- nh_colors[seq(from = 2, to = 12, by = 2)]
+
+```
 
 ### Quick Look at Data and Variables
+
 Some of the numeric variables look interesting, such as the `max_playtime` of 60000 minutes?! And the game with `min_age` of 42?
 ```{r}
 glimpse(board_games)
@@ -50,6 +78,15 @@ board_games %>%
   glimpse()
 ```
 
+Here's how many games were introduced over the years? 
+```{r}
+board_games %>%
+  count(year_published) %>%
+  ggplot(aes(x = year_published, y = n)) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(from = 1950, to = 2016, by = 10))
+```
+
 
 ## How does minumum recommended age relate to average user rating?
 
@@ -58,30 +95,18 @@ Initially, I went with a `geom_point` scatter plot with jittering and dropped th
 Without bucketing the minimum recommended age the beeswarm plot was still a bit messy, although it was easier to see the average rating distribution for each age. I grouped the minimum recommended age based on the initial jittered scatter plot where it was clear that recommended ages for board games tend to be 8, 10, 12, 13, and 14 years old. Note that 12 and 13 ended up grouped together so that the ranges for each group increment consistently. See [Appendix](#appendix) for the initial scatter plot.
 
 There was a lot of overlap between each swarm due to the number of games the data set captures, so in a bit of an arbitrary decision I filtered it for games where over 500 users have rated the game. 
-```{r fig.width=10}
-## my theme object from previous TidyTuesday
-nh_theme <- theme(panel.background = element_rect(fill = "white"),
-          strip.background = element_blank(),
-          strip.text = element_text(hjust = 0, size = 14, color = "grey25", face = "bold"),
-          panel.spacing = unit(2, "lines"),
-          axis.line = element_line(color = "grey85"),
-          panel.grid.major.y = element_line(color = "grey75", linetype = "dotted"),
-          legend.key = element_blank(),
-          legend.key.height = unit(1, "cm"),
-          legend.title = element_text(size = "10"),
-          plot.title = element_text(size = 15, color = "grey15", face = "bold"),
-          plot.subtitle = element_text(size = 12, color = "grey30"),
-          text = element_text(color = "grey40"))
 
+```{r fig.width=10}
 ## my favourite board games
 nh_favorites <- c("Exploding Kittens", "Ticket to Ride", "Caverna: The Cave Farmers")
 
 ## calculate weighted average for all games in dataset
 wt_avg <- board_games %>%
   summarise(sum(average_rating * users_rated) / sum(users_rated)) %>%
-  as_vector()
+  pull()
 
-board_games_processed <- board_games %>%
+board_games %>%
+  filter(users_rated > 500) %>% 
   mutate(
     min_age_group = case_when(
       min_age == 0 ~ "No Min Age",
@@ -92,37 +117,48 @@ board_games_processed <- board_games %>%
       min_age > 13 ~ "14+"
       ),
     favorite = ifelse(name %in% nh_favorites, TRUE, FALSE) ## flagging my favorite games
-  )
-  
-board_games_processed %>%
-  filter(users_rated > 500) %>% 
-  ggplot(aes(x = min_age_group, y = average_rating, color = min_age_group)) +
+  ) %>% {
+  ggplot(., aes(x = min_age_group, y = average_rating, color = min_age_group)) +
   geom_beeswarm(cex = 0.5, alpha = 0.5, shape = 18, priority = "density") +
-  geom_text_repel(data = filter(board_games_processed, favorite == TRUE), aes(label = str_wrap(name, 10)), nudge_x = -0.5) +
+  geom_text_repel(data = filter(., favorite == TRUE), aes(label = str_wrap(name, 10)), nudge_x = -0.5) +
   geom_hline(yintercept = wt_avg, color = "grey50") +
   scale_y_continuous(limits = c(1, 10), breaks = c(1:10), name = "Average User Rating") +
   scale_x_discrete(name = "Minimum Recommended Age", expand = c(0, 1)) +
+  scale_color_manual(values = nh_colors) +
   annotate("text", x = 6.6, y = wt_avg, label = "All Games \nAverage Rating", vjust = -0.25, size = 3) +
   nh_theme +
   theme(legend.position = "none") +
   labs(title = "Average Board Game Rating by Minimum Recommended Age",
        subtitle = "Games with more than 500 user ratings; My favorite games are labeled",
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+  }
 ```
 
 
 Alternatively, a violin plot with the n-value labelled would probably work better to capture all the data in the set (although that's still not all the games as the TidyTuesday data was limited to games with at least 50 user ratings!)
+
 ```{r fig.width=10}
 
-board_games_processed %>%
+board_games %>%
+  mutate(
+    min_age_group = case_when(
+      min_age == 0 ~ "No Min Age",
+      min_age > 0 & min_age < 8 ~ "08 & Under", ## added the leading 0s because I didn't want to manually level
+      min_age >= 8 & min_age <= 9 ~ "08 to 09",
+      min_age >= 10 & min_age <= 11 ~ "10 to 11",
+      min_age >= 12 & min_age <= 13 ~ "12 to 13",
+      min_age > 13 ~ "14+"
+  )) %>%
   group_by(min_age_group) %>%
   mutate(n = n()) %>%
   ungroup() %>%
-  ggplot(aes(x = (paste0(min_age_group, "\nn=", n)), y = average_rating, color = min_age_group, fill = min_age_group)) +
+  ggplot(aes(x = (paste0(min_age_group, "\nn=", n)), y = average_rating, fill = min_age_group)) +
   geom_violin() +
-   geom_hline(yintercept = wt_avg, color = "grey50") +
+  geom_hline(yintercept = wt_avg, color = "grey50") +
   scale_y_continuous(limits = c(1,10), breaks = c(1:10), name = "Average User Rating") +
-  scale_x_discrete(name = "Minimum Recommended Age") +
+  scale_x_discrete(name = "Minimum Recommended Age", expand = c(0, 1)) +
+  scale_fill_manual(values = nh_colors) +
+  annotate("text", x = 6.6, y = wt_avg, label = "All Games \nAverage Rating", vjust = -0.25, size = 3) +
   nh_theme +
   theme(legend.position = "none") +
   labs(title = "Average Board Game Rating by Minimum Recommended Age",
@@ -130,26 +166,86 @@ board_games_processed %>%
        caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
 ```
 
-Not too surprising that games with a higher minimum recommended age have modal points that are higher in rating. It's likely that older people are going onto the site to rate the games and young kids games typically aren't challenging enough for older kids and adults.
+Not too surprising that games with a higher minimum recommended age have peaks in distribution that correspond to higher ratings. It's likely that older people are going onto the site to rate the games and young kids games typically aren't challenging enough for older kids and adults.
 
-## Future To Todos
+## Categories
 
 ### How many categories are there?
-How do the games breakdown by category?
-I also started to look into the categories, but will have to figure out how to separate out the categories strings and visualize the games by categories another time!
+
+Note that I had collapsed the various war games into one main category of "War" earlier in processing.
+
 ```{r}
-paste2 <- function (x, y, sep = ",") paste(x, y, sep = sep)
+categories_unique <- board_games_processed %>%
+  drop_na(category) %>%
+  select(category) %>%
+  unique() %>%
+  arrange(category)%>%
+  pull()
 
-games_categories <- board_games$category %>%
-  reduce(paste2) %>%
-  str_split(",") %>%
-  as_vector() %>%
-  str_trim(side = "both") %>%
-  unique()
+categories_unique
+```
 
-games_categories
+### Which are the top three categories?
 
-length(games_categories)
+```{r}
+board_games_processed %>%
+  drop_na(category) %>%
+  count(category) %>% 
+  top_n(n = 3, wt = n)
+```
+
+Let's see the distribution of these top three game categories over the years. Lots of card and fantasy games have been published in recent years, but less so for war games.
+
+```{r fig.width=10}
+board_games_processed %>%
+  filter(category %in% c("War", "Card Game", "Fantasy")) %>%
+  ggplot(aes(x = year_published, color = category, fill = category)) +
+  geom_density(bw = 1.5) +
+  geom_rug(alpha = 0.2) +
+  facet_wrap(~category) +
+  scale_color_manual(values = nh_colors, name = "Game Category") +
+  scale_fill_manual(values = nh_colors, name = "Game Category") +
+  scale_x_continuous(breaks = seq(from = 1950, to = 2016, by = 20), name = "Year Published") +
+  scale_y_continuous(name = "Density") +
+  nh_theme + 
+  theme(legend.position = "none") +
+  labs(title = "Top Three Board Game Categories Over the Years (1950-2016)",
+       subtitle = "Various types of war games combined into single \"War\" category; \nBandwidth: 1.5",
+       caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+```
+
+### How does game category influence average user ratings?
+Looks like people really like train games and really don't like trivia games. This chart is pretty crazy though, I think in future I will use `fct_lump` to grab the top 20 categories and drop everything else into an "other" category. Additionally I kept in all coefficients even ones with p-value greater than 0.05.
+
+```{r fig.width=10, fig.height=10}
+board_games_processed_wide <- board_games_processed %>%
+  spread(key = category, value = category) %>%
+  select(-dim(.)[2]) #drop the column of NAs, which is the last column
+
+for(category in categories_unique){
+  board_games_processed_wide[[category]] <- ifelse(!is.na(board_games_processed_wide[[category]]), TRUE, FALSE)
+}
+
+board_games_coeffs <- board_games_processed_wide %>%
+  select(average_rating, categories_unique) %>%
+  lm(average_rating ~ ., data = .) %>%
+  tidy()
+
+board_games_coeffs[-1, ] %>%
+  mutate(term = gsub("TRUE", "", term),
+         term = gsub("`", "", term)) %>%
+  ggplot(aes(x = fct_reorder(term, estimate), y = estimate)) +
+  geom_point() +
+  geom_segment(aes(x = fct_reorder(term, estimate), xend = fct_reorder(term, estimate), y = 0, yend = estimate)) +
+  scale_y_continuous(name = "Regression Coefficient") +
+  scale_x_discrete(name = "") +
+  coord_flip() +
+  nh_theme +
+  theme(panel.grid.major.y = element_line(linetype = "solid")) +
+  labs(title = "Game Category Influences on Average Rating",
+       subtitle = "Various types of war games combined into single \"War\" category",
+       caption = "Data Source: Board Game Geek // #TidyTuesday // @nh_writes")
+  
 ```
 
 
