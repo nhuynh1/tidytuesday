@@ -1,0 +1,111 @@
+---
+title: "Seattle Bike Counters"
+author: "Nancy Huynh"
+date: '2019-04-03'
+output: 
+  github_document:
+    toc: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Import and Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(skimr)
+
+bike_traffic <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-04-02/bike_traffic.csv", 
+                                col_types = "cccdd") %>%
+                mutate(date = mdy_hms(date),
+                       direction = factor(direction))
+  
+```
+
+```{r echo=FALSE, include=FALSE}
+## my theme object from previous TidyTuesday
+nh_theme <- theme(panel.background = element_rect(fill = "white"),
+          strip.background = element_blank(),
+          strip.text = element_text(hjust = 0, size = 14, color = "grey25", face = "bold"),
+          panel.spacing = unit(2, "lines"),
+          axis.line = element_line(color = "grey85"),
+          panel.grid.major.y = element_line(color = "grey75", linetype = "dotted"),
+          legend.key = element_blank(),
+          legend.key.height = unit(1, "cm"),
+          legend.title = element_text(size = "10"),
+          plot.title = element_text(size = 15, color = "grey15", face = "bold"),
+          plot.subtitle = element_text(size = 12, color = "grey30"),
+          text = element_text(color = "grey40"))
+```
+
+## Quick Skim of the Data
+
+Something is a bit amiss with a few of the bike counts 8191 and 4095 counts occurring in the early hours of the morning between 3AM-6AM on May 30, 2018. Not sure what would cause this based on some quick Googling--it is possible there was some error with the counter during those hours. Will have to keep this in mind.
+
+```{r}
+skim(bike_traffic)
+
+bike_traffic %>%
+  arrange(desc(bike_count)) %>%
+  head(10)
+
+remove <- which(bike_traffic$bike_count > 4000)
+
+bike_traffic <- bike_traffic[-remove, ] #remove the three really high values
+```
+
+## How has bike traffic changed over time?
+You can definitely see the seasonality peaks between summer and winter. Looks like the seasonal peaks have been decreasing year to year, and the high season in 2018 doesn't seem to last nearly as long, which is odd. Digging further into this in the next chart. Note: I took out the Sealth Trail as there's only two years of data available.
+```{r fig.width=10}
+bike_traffic %>%
+  filter(date >= "2014-01-01", date <= "2018-12-31",  #filter out these years: only 1 month in 2013, and just 2 months in 2019 so far
+         crossing != "Sealth Trail") %>%              #also filtering out Sealth Trail
+  mutate(month = as.Date(floor_date(date, "month"))) %>% 
+  group_by(month) %>%
+  summarise(total_bike_count  = sum(bike_count, na.rm = TRUE)) %>%
+  ggplot(aes(x = month, y = total_bike_count / 1000)) +
+  geom_line() +
+  scale_x_date(name = "Month", date_breaks = "6 months") + 
+  labs(y = "Bikes Counted (in thousands)",
+       title = "Seattle Bike Traffic by Month",
+       subtitle = "Dec 2013-Feb 2019",
+       caption = "Data: Seattle Department of Transportation | Graphic: @nh_writes") +
+  nh_theme
+```
+
+
+## How has bike traffic changed over time for each of the bike traffic counters?
+I started out plotting the data and noticed some months where the count drops to zero, and also some months where there was no data at all. By using tidy::complete I was able to fill in the missing months with NAs. I also converted months that had a 0 count to NA as well. This allows the chart to show broken lines. Even then, we can visually see when the counters weren't recording properly, i.e. March 2015 on the Elliot Bay Trail where it dips close to 0. In 2018 the counters for two of the trails did not record counts during the summer months -- Burke Gilman Trail, and 39th Ave. The 39th Ave one did not have any counts after May. Given these two findings, the 2018 high season was missing a good chunk of data, especially since the Burke Gilman Trail counter historically has some of the highest counts. Also odd that the NW 58th St Greenway counter showed really high counts in 2014 and for the other years it is about 1/3 of the 2014 counts. Given these observations of missing count information, it's a bit hard to say that ridership was down in 2018 overall. Although we can see that some locations are getting lower bike traffic based on the available months, i.e. Burke Gilman Trail and 39th Ave. Elliot Bay location had some of the highest traffic in 2018 during the peak season.
+```{r fig.width=10}
+bike_traffic_my <- bike_traffic %>%
+  mutate(month = month(date),
+         year = year(date)) %>%
+  filter((!year %in% c(2013, 2019)),
+         crossing != "Sealth Trail") %>%
+  group_by(crossing, year, month) %>%
+  summarize(total_bike_count = sum(bike_count, na.rm = TRUE)) %>%
+  ungroup()
+
+bike_traffic_my <- complete(bike_traffic_my, crossing, year, month) %>%
+  mutate(total_bike_count = ifelse(total_bike_count == 0, NA, total_bike_count))
+
+nh_colors <- RColorBrewer::brewer.pal(4, "Pastel1")
+nh_colors[5] <- "Grey20"
+
+ggplot(bike_traffic_my, aes(x = month, y = total_bike_count / 1000, color = as.factor(year))) +
+  geom_line() +
+  facet_wrap(~crossing, scales = "free_y", labeller = labeller(crossing = label_wrap_gen(35))) +
+  scale_color_manual(values = nh_colors, name = "") +
+  scale_x_continuous(name = "Month of Year", breaks = seq(from = 1, to = 12, by = 1), expand = c(0,0)) +
+  scale_y_continuous(name = "Bikes Counted (in thousands)", labels = scales::number_format(accuracy = 1)) +
+  nh_theme +
+  labs(title = "Seattle Monthly Bike Traffic Count by Location",
+       subtitle = "2014-2018",
+       caption = "Data: Seattle Department of Transportation | Graphic: @nh_writes")
+
+file_path <- file.path("~", "Data For R", "seattle_bike_traffic_location.png")
+ggsave(file_path, width = 29, height = 21, units = "cm", dpi = "retina")
+```
