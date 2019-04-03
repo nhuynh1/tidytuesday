@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Data Import and Libraries
-
+Another [TidyTuesday](https://github.com/rfordatascience/tidytuesday) exploratory analysis. This week the data is on bike traffic in Seattle at seven locations. The data is from the Seattle Department of Transportation, and you can get it from the [TidyTuesday Repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-04-02)
 ```{r warning=FALSE, message=FALSE}
 library(tidyverse)
 library(lubridate)
@@ -29,7 +29,7 @@ bike_traffic <- readr::read_csv("https://raw.githubusercontent.com/rfordatascien
 ## my theme object from previous TidyTuesday
 nh_theme <- theme(panel.background = element_rect(fill = "white"),
           strip.background = element_blank(),
-          strip.text = element_text(hjust = 0, size = 14, color = "grey25", face = "bold"),
+          strip.text = element_text(hjust = 0, size = 12, color = "grey25", face = "bold"),
           panel.spacing = unit(2, "lines"),
           axis.line = element_line(color = "grey85"),
           panel.grid.major.y = element_line(color = "grey75", linetype = "dotted"),
@@ -97,7 +97,7 @@ nh_colors[5] <- "Grey20"
 
 ggplot(bike_traffic_my, aes(x = month, y = total_bike_count / 1000, color = as.factor(year))) +
   geom_line() +
-  facet_wrap(~crossing, scales = "free_y", labeller = labeller(crossing = label_wrap_gen(35))) +
+  facet_wrap(~crossing, scales = "free_y", labeller = labeller(crossing = label_wrap_gen(30))) +
   scale_color_manual(values = nh_colors, name = "") +
   scale_x_continuous(name = "Month of Year", breaks = seq(from = 1, to = 12, by = 1), expand = c(0,0)) +
   scale_y_continuous(name = "Bikes Counted (in thousands)", labels = scales::number_format(accuracy = 1)) +

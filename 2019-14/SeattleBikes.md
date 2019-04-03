@@ -11,6 +11,8 @@ Nancy Huynh
 Data Import and Libraries
 -------------------------
 
+Another [TidyTuesday](https://github.com/rfordatascience/tidytuesday) exploratory analysis. This week the data is on bike traffic in Seattle at seven locations. The data is from the Seattle Department of Transportation, and you can get it from the [TidyTuesday Repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-04-02)
+
 ``` r
 library(tidyverse)
 library(lubridate)
@@ -35,17 +37,17 @@ skim(bike_traffic)
     ##  n obs: 515688 
     ##  n variables: 5 
     ## 
-    ## ── Variable type:character ───────────────────────────────────────────────────────────
+    ## ── Variable type:character ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     ##  variable missing complete      n min max empty n_unique
     ##  crossing       0   515688 515688   9  40     0        7
     ## 
-    ## ── Variable type:factor ──────────────────────────────────────────────────────────────
+    ## ── Variable type:factor ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     ##   variable missing complete      n n_unique
     ##  direction       0   515688 515688        4
     ##                                        top_counts ordered
     ##  Nor: 190488, Sou: 190488, Eas: 90144, Wes: 44568   FALSE
     ## 
-    ## ── Variable type:numeric ─────────────────────────────────────────────────────────────
+    ## ── Variable type:numeric ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     ##    variable missing complete      n  mean     sd p0 p25 p50 p75 p100
     ##  bike_count    6603   509085 515688 11.78  28.75  0   0   3  12 8191
     ##   ped_count  261713   253975 515688 26.04 100.55  0   0   3  19 4946
@@ -53,7 +55,7 @@ skim(bike_traffic)
     ##  ▇▁▁▁▁▁▁▁
     ##  ▇▁▁▁▁▁▁▁
     ## 
-    ## ── Variable type:POSIXct ─────────────────────────────────────────────────────────────
+    ## ── Variable type:POSIXct ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     ##  variable missing complete      n        min        max     median
     ##      date       0   515688 515688 2013-12-18 2019-02-28 2016-04-28
     ##  n_unique
@@ -132,7 +134,7 @@ nh_colors[5] <- "Grey20"
 
 ggplot(bike_traffic_my, aes(x = month, y = total_bike_count / 1000, color = as.factor(year))) +
   geom_line() +
-  facet_wrap(~crossing, scales = "free_y", labeller = labeller(crossing = label_wrap_gen(35))) +
+  facet_wrap(~crossing, scales = "free_y", labeller = labeller(crossing = label_wrap_gen(30))) +
   scale_color_manual(values = nh_colors, name = "") +
   scale_x_continuous(name = "Month of Year", breaks = seq(from = 1, to = 12, by = 1), expand = c(0,0)) +
   scale_y_continuous(name = "Bikes Counted (in thousands)", labels = scales::number_format(accuracy = 1)) +
