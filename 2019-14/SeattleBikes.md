@@ -333,13 +333,15 @@ df_plot <- data.frame(fitted = as.matrix(biketimeseries_forecast_pred[["fitted"]
   gather(key = "variable", value = "value", -month)
   
 
-ggplot(df_plot, aes(x = month, y = value, color = variable)) +
+ggplot(df_plot, aes(x = month, y = value / 1000, color = variable)) +
   geom_line() +
   nh_theme +
   coord_cartesian(xlim = c(as.Date("2015-01-01"), as.Date("2020-01-01"))) +
   scale_color_discrete(name = "") +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  labs(title = "Bike count predictions (2018-2019)",
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y-%b") +
+  labs(y = "Bikes Counted (in thousands)",
+       x = "Year",
+       title = "Bike count predictions (2018-2019)",
        subtitle = "Burke Gilman Trail",
        caption = "Data: Seattle Department of Transportation | Graphic: @nh_writes")
 ```
