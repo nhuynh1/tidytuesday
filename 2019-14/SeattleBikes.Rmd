@@ -11,8 +11,12 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Seattle Bike Traffice
+Based on seven different counters installed throughout the city of Seattle.
+
 ## Data Import and Libraries
 Another [TidyTuesday](https://github.com/rfordatascience/tidytuesday) exploratory analysis. This week the data is on bike traffic in Seattle at seven locations. The data is from the Seattle Department of Transportation, and you can get it from the [TidyTuesday Repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-04-02)
+
 ```{r warning=FALSE, message=FALSE}
 library(tidyverse)
 library(lubridate)
@@ -79,6 +83,7 @@ bike_traffic %>%
 
 ## How has bike traffic changed over time for each of the bike traffic counters?
 I started out plotting the data and noticed some months where the count drops to zero, and also some months where there was no data at all. By using tidy::complete I was able to fill in the missing months with NAs. I also converted months that had a 0 count to NA as well. This allows the chart to show broken lines. Even then, we can visually see when the counters weren't recording properly, i.e. March 2015 on the Elliot Bay Trail where it dips close to 0. In 2018 the counters for two of the trails did not record counts during the summer months -- Burke Gilman Trail, and 39th Ave. The 39th Ave one did not have any counts after May. Given these two findings, the 2018 high season was missing a good chunk of data, especially since the Burke Gilman Trail counter historically has some of the highest counts. Also odd that the NW 58th St Greenway counter showed really high counts in 2014 and for the other years it is about 1/3 of the 2014 counts. Given these observations of missing count information, it's a bit hard to say that ridership was down in 2018 overall. Although we can see that some locations are getting lower bike traffic based on the available months, i.e. Burke Gilman Trail and 39th Ave. Elliot Bay location had some of the highest traffic in 2018 during the peak season.
+
 ```{r fig.width=10}
 bike_traffic_my <- bike_traffic %>%
   mutate(month = month(date),
@@ -108,4 +113,120 @@ ggplot(bike_traffic_my, aes(x = month, y = total_bike_count / 1000, color = as.f
 
 file_path <- file.path("~", "Data For R", "seattle_bike_traffic_location.png")
 ggsave(file_path, width = 29, height = 21, units = "cm", dpi = "retina")
+```
+
+## Time series analysis
+Trying out some time series analysis to learn about exponential smoothing models. As we saw from the analysis above, some of the counters were not recording counts for large chunks of time. Since I'm just learning here, I'm going to choose the counter and timeframe that has complete data, which is the Burke Gilman Trail counter from 2014-2017.
+
+### Arrange data for timeseries
+Creating a clean timeseries data frame.
+```{r}
+
+bike_traffic_ts <- bike_traffic %>%
+  mutate(month = month(date),
+         year = year(date)) %>%
+  filter(!(year %in% c(2013, 2018, 2019)),
+         crossing == "Burke Gilman Trail") %>%
+  group_by(year, month) %>%
+  summarise(total_bike_count = sum(bike_count, na.rm = TRUE)) %>%
+  arrange(year, month) %>%
+  ungroup() %>%
+  select(total_bike_count)
+```
+
+### Create time series object and decompose to trend, seasonal, and random components
+The `decompose()` function is handy! The trend component seems to be declining a bit over time, but we have to pay attention to the y-scaling -- the decline isn't *that* big.
+```{r}
+biketimeseries <- ts(bike_traffic_ts, frequency = 12, start = c(2014, 1))
+plot.ts(biketimeseries)
+
+biketimeseriescomps <- decompose(biketimeseries)
+plot(biketimeseriescomps)
+```
+
+### Generate Holt-Winters Exponential Smoothing model
+Since the data is seasonal, I'm going to use Holt-Winters. The beta, and gamma parameters indicates that the trend and seasonal components are set to its initial values. The alpha indicates that the estimate of the level at the current time point is based upon both recent observations and a bit of observations in the more distant past.
+
+```{r}
+biketimeseries_forecast <- HoltWinters(biketimeseries)
+biketimeseries_forecast
+biketimeseries_forecast$SSE
+
+plot(biketimeseries_forecast)
+```
+
+Let's forecast for two years.
+```{r}
+library(forecast)
+
+biketimeseries_forecast_pred <- forecast(biketimeseries_forecast, h = 24)
+
+plot(biketimeseries_forecast_pred)
+
+```
+
+Check to make sure that the residuals meet the requirements for Holt-Winters exponential smoothing. `acf()` checks for non-zero autocorrleation at the specified lags. The Ljung-Box test also checks for auto-correlation. Ideally, for this test we don't want to reject the null hypothesis: ["the data are independently distributed"](https://en.wikipedia.org/wiki/Ljung%E2%80%93Box_test), otherwise that would mean the residuals exhibit correlation. In this case it looks fine, but if the p-value was 0.05 or less, I would have to re-think using Holt-Winters. Meanwhile, the `plotForecastErrors()` plots a chart so we can ensure that the residuals are normally distributed with mean 0, and plotting the residuals will help us see if the forecast errors have constant variance over time.
+
+This function plots distribution of residuals overlaid with normal density curve with mean zero and standard deviation that is the same as the residuals. This function came from the [Little Book of R for Time Series](https://a-little-book-of-r-for-time-series.readthedocs.io/en/latest/src/timeseries.html#forecasts-using-exponential-smoothing).
+
+```{r}
+plotForecastErrors <- function(forecasterrors)
+  {
+     # make a histogram of the forecast errors:
+     mybinsize <- IQR(forecasterrors)/4
+     mysd   <- sd(forecasterrors)
+     mymin  <- min(forecasterrors) - mysd*5
+     mymax  <- max(forecasterrors) + mysd*3
+     # generate normally distributed data with mean 0 and standard deviation mysd
+     mynorm <- rnorm(10000, mean=0, sd=mysd)
+     mymin2 <- min(mynorm)
+     mymax2 <- max(mynorm)
+     if (mymin2 < mymin) { mymin <- mymin2 }
+     if (mymax2 > mymax) { mymax <- mymax2 }
+     # make a red histogram of the forecast errors, with the normally distributed data overlaid:
+     mybins <- seq(mymin, mymax, mybinsize)
+     hist(forecasterrors, col="red", freq=FALSE, breaks=mybins)
+     # freq=FALSE ensures the area under the histogram = 1
+     # generate normally distributed data with mean 0 and standard deviation mysd
+     myhist <- hist(mynorm, plot=FALSE, breaks=mybins)
+     # plot the normal curve as a blue line on top of the histogram of forecast errors:
+     points(myhist$mids, myhist$density, type="l", col="blue", lwd=2)
+  }
+```
+
+
+```{r}
+plot.ts(biketimeseries_forecast_pred$residuals)
+
+acf(biketimeseries_forecast_pred$residuals, na.action = na.omit, lag.max = 20)
+Box.test(biketimeseries_forecast_pred$residuals, lag = 20, type = "Ljung-Box")
+
+res <- na.omit(biketimeseries_forecast_pred$residuals)
+plotForecastErrors(res)
+```
+
+
+### Create ggplot2 Chart
+There doesn't seem to be a simple way to plot `forecast` objects easily with ggplot2. First, create a data frame of the observed and fitted values that we can use with ggplot. Not sure why there are no fitted values for 2014 though (will have to look into this later).
+```{r fig.width=10}
+
+df_plot <- data.frame(fitted = as.matrix(biketimeseries_forecast_pred[["fitted"]])) %>%
+  bind_cols(bike_traffic_ts) %>%
+  rename(observed = total_bike_count) %>%
+  bind_rows(data.frame(fitted = as.matrix(biketimeseries_forecast_pred$mean))) %>%
+  bind_cols(data.frame(month = seq(from = as.Date("2014-01-01"), to = as.Date("2019-12-01"), by = "months"))) %>%
+  gather(key = "variable", value = "value", -month)
+  
+
+ggplot(df_plot, aes(x = month, y = value, color = variable)) +
+  geom_line() +
+  nh_theme +
+  coord_cartesian(xlim = c(as.Date("2015-01-01"), as.Date("2020-01-01"))) +
+  scale_color_discrete(name = "") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(title = "Bike count predictions (2018-2019)",
+       subtitle = "Burke Gilman Trail",
+       caption = "Data: Seattle Department of Transportation | Graphic: @nh_writes")
+
+
 ```
