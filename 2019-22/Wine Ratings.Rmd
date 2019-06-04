@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Wine Ratings from WineEnthusiast
-After a few weeks of hiatus from [#TidyTuesday](https://twitter.com/search?f=tweets&vertical=default&q=%23tidytuesday&src=tyah) I'm back with to take a quick look at wine ratings. Data originally scraped from [WineEnthusiast](https://www.winemag.com/?s=&drink_type=wine) and made available on [Kaggle](https://www.kaggle.com/zynicide/wine-reviews). I got the dataset from the [TidyTuesday repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-05-28).
+After a few weeks of hiatus from [#TidyTuesday](https://twitter.com/search?f=tweets&vertical=default&q=%23tidytuesday&src=tyah) I'm back to take a quick look at wine ratings. Data originally scraped from [WineEnthusiast](https://www.winemag.com/?s=&drink_type=wine) and made available on [Kaggle](https://www.kaggle.com/zynicide/wine-reviews). I got the dataset from the [TidyTuesday repo](https://github.com/rfordatascience/tidytuesday/tree/master/data/2019/2019-05-28).
 
 ## Libraries and Data Import
 ```{r warning=FALSE, message=FALSE}
