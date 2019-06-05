@@ -7,6 +7,7 @@ Nancy Huynh
     -   [Data Import and Libraries](#data-import-and-libraries)
     -   [What are the ratings across brand, style, and country of origin?](#what-are-the-ratings-across-brand-style-and-country-of-origin)
     -   [What factors influences the star rating of the ramen?](#what-factors-influences-the-star-rating-of-the-ramen)
+        -   [Testing the model with the test set `ramen_test`](#testing-the-model-with-the-test-set-ramen_test)
     -   [Things to do later](#things-to-do-later)
     -   [References](#references)
 
@@ -113,13 +114,13 @@ plot(cv.lasso)
 cv.lasso$lambda.min
 ```
 
-    ## [1] 0.01407287
+    ## [1] 0.01658126
 
 ``` r
 cv.lasso$lambda.1se
 ```
 
-    ## [1] 0.03251016
+    ## [1] 0.04203953
 
 ``` r
 #choosing lambda.1se as this seems to be the typical choice so as to not overfit
@@ -149,10 +150,95 @@ ramen_coefs %>%
 
 ![](Ramen_Ratings_files/figure-markdown_github/ramen_coefs-1.png)
 
+``` r
+#ggsave("ramen_coefficients.png", device = "png", units = "cm", width = 29, height = 21, dpi = "retina")
+```
+
+### Testing the model with the test set `ramen_test`
+
+Since the model predicts stars as a continous number, but the ramen rater rates in 0.25 increments so I rounded the predicted values to the nearest 0.25.
+
+#### LASSO model with lambda.1se
+
+``` r
+ramen_lasso_model <- glmnet(x = features, y = ramen_train$stars, alpha = 1, lambda = cv.lasso$lambda.1se)
+ramen_test_features <- model.matrix(stars ~ brand + style + country, ramen_test)[, -1]
+
+predicted_stars <- as.data.frame(predict(ramen_lasso_model, newx = ramen_test_features)) %>%
+  rename(predicted = s0) %>%
+  bind_cols(stars = ramen_test$stars) %>%
+  mutate(predicted_stars = round(predicted * 4) / 4,
+         error2 = (predicted_stars - stars)^2)
+
+predicted_stars %>%
+  summarise(RMSE = sqrt(mean(error2)))
+```
+
+    ##        RMSE
+    ## 1 0.8979644
+
+#### LASSO model with lambda.min
+
+``` r
+ramen_lasso_model <- glmnet(x = features, y = ramen_train$stars, alpha = 1, lambda = cv.lasso$lambda.min)
+ramen_test_features <- model.matrix(stars ~ brand + style + country, ramen_test)[, -1]
+
+predicted_stars <- as.data.frame(predict(ramen_lasso_model, newx = ramen_test_features)) %>%
+  rename(predicted = s0) %>%
+  bind_cols(stars = ramen_test$stars) %>%
+  mutate(predicted_stars = round(predicted * 4) / 4,
+         error2 = (predicted_stars - stars)^2)
+
+predicted_stars %>%
+  summarise(RMSE = sqrt(mean(error2)))
+```
+
+    ##        RMSE
+    ## 1 0.8728159
+
+#### Linear model
+
+I hade trouble running the model against the testing data `ramen_test` because some of the brands in that set were not present in the training set so I ran `predict` on the same training data set to get the error and RMSE. Since the model is fitted to that data it is expected that the RMSE would be lower than the LASSO models.
+
+``` r
+ramen_lm_model <- lm(stars ~ brand + style + country, data = ramen_train)
+predicted_stars <- data.frame(predicted = predict.lm(ramen_lm_model)) %>%
+  bind_cols(stars = ramen_train$stars) %>%
+  mutate(predicted_stars = round(predicted * 4) / 4,
+         error2 = (predicted_stars - stars)^2)
+
+predicted_stars %>%
+  summarise(RMSE = sqrt(mean(error2)))
+```
+
+    ##        RMSE
+    ## 1 0.7922031
+
+After removing the brands in the test set that were not present in the training set the RMSE is much higher than the linear RMSE above and is very close to the two LASSO model RMSEs. Since LASSO models are less complex, this bodes well as simpler models with similar error is generally considered better from a practical standpoint.
+
+``` r
+ramen_test_brands_rm <- semi_join(ramen_test, ramen_train, by = "brand")
+predicted_stars <- data.frame(predicted = predict.lm(ramen_lm_model, newdata = ramen_test_brands_rm)) %>%
+  bind_cols(stars = ramen_test_brands_rm$stars) %>%
+  mutate(predicted_stars = round(predicted * 4) / 4,
+         error2 = (predicted_stars - stars)^2)
+```
+
+    ## Warning in predict.lm(ramen_lm_model, newdata = ramen_test_brands_rm):
+    ## prediction from a rank-deficient fit may be misleading
+
+``` r
+predicted_stars %>%
+  summarise(RMSE = sqrt(mean(error2)))
+```
+
+    ##        RMSE
+    ## 1 0.8688813
+
 Things to do later
 ------------------
 
-This is by no means a complete analysis; I'm just trying out LASSO regression using this fairly simple dataset. After looking at the top 30 coefficients I should somehow limit the brands to those that occur more than say 5 times. For example the largest coefficient is brand "Roland", which only occurs 2 times in the whole dataset. I should also see how well the model fairs against the test data set I split out called `ramen_test`.
+This is by no means a complete analysis; I'm just trying out LASSO regression using this fairly simple dataset. After looking at the top 30 coefficients I should somehow limit the brands to those that occur more than say 5 times. For example the largest coefficient is brand "Roland", which only occurs 2 times in the whole dataset.
 
 References
 ----------
