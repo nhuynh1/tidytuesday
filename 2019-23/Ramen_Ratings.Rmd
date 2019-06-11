@@ -92,6 +92,7 @@ ramen_coefs <- cv.lasso$glmnet.fit %>%
   arrange(desc(estimate))
 ```
 
+
 ```{r ramen_coefs}
 ramen_coefs %>%
   filter(term != "(Intercept)") %>%
@@ -181,6 +182,44 @@ predicted_stars %>%
 ## Things to do later
 This is by no means a complete analysis; I'm just trying out LASSO regression using this fairly simple dataset. After looking at the top 30 coefficients I should somehow limit the brands to those that occur more than say 5 times. For example the largest coefficient is brand "Roland", which only occurs 2 times in the whole dataset.
 
+```{r}
+ramen_train_filtered <- ramen_train %>% 
+  mutate(brand = as.character(brand),
+         style = as.character(style),
+         country = as.character(country)) %>%
+  gather(key = "category", value = "term", -review_number, -variety, -stars) %>% add_count(term, sort = TRUE) %>% filter (n > 5) %>% select(-n) %>% spread(category, term)
+
+features_filtered <- model.matrix(stars ~ 0 + brand + style + country, ramen_train_filtered)
+```
+
+
+```{r}
+ramen_train_filtered <- ramen_train %>% 
+  mutate(brand = as.character(brand),
+         style = as.character(style),
+         country = as.character(country)) %>%
+  gather(key = "category", value = "term", -review_number, -variety, -stars) %>% add_count(term, sort = TRUE) %>% filter (n > 5) %>% select(-n) %>% unite(col = "category_term", category, term) %>%
+  mutate(ramen_id = row_number())
+
+ramen_train_filtered_matrix <- ramen_train_filtered %>%
+  tidytext::cast_sparse(ramen_id, category_term)
+
+ramen_ids <- as.integer(rownames(ramen_train_filtered_matrix))
+
+ramen_train_matrix_ratings <- ramen_train_filtered$stars[ramen_ids]
+
+```
+
+
 ## References
 * [Lasso Regression: Simple Definition](https://www.statisticshowto.datasciencecentral.com/lasso-regression/)
 * [Penalized Logistic Regression Essentials in R: Ridge, Lasso and Elastic Net](http://www.sthda.com/english/articles/36-classification-methods-essentials/149-penalized-logistic-regression-essentials-in-r-ridge-lasso-and-elastic-net/)
+
+## Additional notes
+Considering the size of the featurs matrix, it might be worthwhile to convert it to a sparse matrix
+
+```{r}
+#sparse matrix for features
+library(Matrix)
+features_sparse <- Matrix(features, sparse = TRUE)
+```
