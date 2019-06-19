@@ -75,10 +75,6 @@ bird_counts %>%
 
 ![](christmas_bird_count_files/figure-markdown_github/bird_trends_sparklines-1.png)
 
-``` r
-#ggsave("bird_trends.png", device = "png", units = "cm", width = 29, height = 21, dpi = "retina")
-```
-
 The issue I have with the above analysis is that `how_many_counted_by_hour` isn't scaled; the European Starling has the largest negative coefficient of -5.29 but it is worth noting that it is also one of the most commonly sighted species. This means that as the year increases there are 5.29 fewer sightings of European Starling per hour of observation, but how is this relative to other species like the Northern Flicker which has a coefficient of -0.004 but is not as commonly sighted. The decreasing trend may be very similar, but I can't tell from the coefficient. I try to address this issue below by standardizing `how_many_counted_by_hour` for each species using z-score. There are some differences in top and bottom 5 species compared with the above chart.
 
 ``` r
@@ -113,10 +109,11 @@ bird_counts %>%
   geom_line() +
   facet_wrap(~ species, ncol = 1, scales = "free_y", strip.position = "left") +
   scale_x_continuous(name = "Year", breaks = seq(1997, 2017, 5)) +
-  labs(y = "",
-       title = "Bird Species Sightings Trends (1997-2017)",
-       subtitle = "Largest coefficients for year \nBased on linear regression of z-score; FDR adjusted p-value <= 0.05",
-       caption = "Data: Bird Studies Canada (Hamilton)\n@nh_writes") +
+  labs(y = "", 
+       title = "Bird Species Christmas Count Trends (1997-2017)",
+       subtitle = "Species seeing the largest trending increases and decreases",
+       caption = "Data: Bird Studies Canada (Hamilton); Graph: @nh_writes\n
+                  Species with largest coefficients for year based on standardized linear regression; FDR adjusted p-value <= 0.05") +
   nh_theme +
   theme(strip.text.y = element_text(angle = 180, hjust = 1), #make strip text horizontal
         strip.background = element_rect(fill = "white"),
@@ -128,6 +125,10 @@ bird_counts %>%
 ```
 
 ![](christmas_bird_count_files/figure-markdown_github/bird_trends_z_sparklines-1.png)
+
+``` r
+#ggsave("bird_trends.png", device = "png", units = "cm", width = 29, height = 21, dpi = "retina")
+```
 
 References
 ----------
