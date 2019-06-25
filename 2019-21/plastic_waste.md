@@ -1,22 +1,23 @@
----
-title: "Plastic Waste"
-author: "Nancy Huynh"
-date: '2019-06-19'
-output: 
-  github_document:
-    toc: TRUE
----
+Plastic Waste
+================
+Nancy Huynh
+2019-06-19
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+-   [Global Plastic Waste](#global-plastic-waste)
+    -   [Data import and libraries](#data-import-and-libraries)
+    -   [How do countries contribute to the global plastic pollution?](#how-do-countries-contribute-to-the-global-plastic-pollution)
 
-# Global Plastic Waste
+Global Plastic Waste
+====================
+
 Just a quick one to practice a bit of data cleaning using the `janitor` package.
 
-## Data import and libraries
+Data import and libraries
+-------------------------
+
 The data requires a little bit of cleaning and filtering as there are a considerable amount of NAs present.
-```{r warning=FALSE, message=FALSE}
+
+``` r
 library(tidyverse)
 library(janitor)
 library(scales)
@@ -41,13 +42,14 @@ waste_gdp_clean <- waste_vs_gdp %>%
   left_join(coast_vs_waste %>% clean_waste_data(), by = c("country", "country_code")) %>%
   rename(gdp_capita = gdp_per_capita_ppp_constant_2011_international_constant_2011_international,
          plastic_waste_capita_kg_per_day = per_capita_plastic_waste_kilograms_per_person_per_day)
-
 ```
 
-## How do countries contribute to the global plastic pollution?
-No surprise here that China is a huge contributor. Seeing some of the other top countries there might be a relationship between infrastructure development, corruption, and mismanaged waste.
-```{r}
+How do countries contribute to the global plastic pollution?
+------------------------------------------------------------
 
+No surprise here that China is a huge contributor. Seeing some of the other top countries there might be a relationship between infrastructure development, corruption, and mismanaged waste.
+
+``` r
 world_mismanaged_plastic_waste <- waste_gdp_clean %>%
   filter(country == "World") %>%
   pull(mismanaged_plastic_waste_tonnes)
@@ -70,3 +72,4 @@ top_countries %>%
   theme_light()
 ```
 
+![](plastic_waste_files/figure-markdown_github/unnamed-chunk-2-1.png)
